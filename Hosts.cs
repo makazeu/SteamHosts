@@ -5,21 +5,35 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using PSHostsFile;
+using System.Net;
 
 namespace SteamHosts
 {
     class Hosts
     {
-        public static bool ChangeHosts(String hostname, String ipAddr)
+        public static string ChangeHosts(String hostname, String ipAddr)
         {
             try
             {
                 HostsFile.Set(hostname, ipAddr);
-                return true;
+                return "OK";
             } catch (Exception e)
             {
                 Console.WriteLine(e.ToString());
-                return false;
+                return e.Message.ToString();
+            }
+        }
+
+        public static string getIPByDomain(String hostname)
+        {
+            try
+            {
+                IPHostEntry hostInfo = Dns.GetHostEntry(hostname);
+                IPAddress[] IPAddr = hostInfo.AddressList;
+                return IPAddr[0].ToString();
+            } catch (Exception e)
+            {
+                return e.Message.ToString();
             }
         }
     }

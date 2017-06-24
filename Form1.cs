@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Threading;
+using System.Linq;
 using System.Drawing;
 
 namespace SteamHosts
@@ -12,6 +13,8 @@ namespace SteamHosts
         const string Hostname = "store.steampowered.com";
         const int MaximumConnection = 30;
         const int MaximumTimeout = 3; // seconds
+        const string UnableToConnect = "连接失败";
+        const string TimeUnitString = " ms";
 
         Dictionary<String, String> ipList;
         int foundCount;
@@ -27,18 +30,29 @@ namespace SteamHosts
 
         private void UpdateListView(string ip, bool success, int time)
         {
-            ListViewItem item = listView1.FindItemWithText(ip, true, 0);
+            DataGridViewRow row = dataGridView1.Rows
+                .Cast<DataGridViewRow>()
+                .Where(r => r.Cells["ip"].Value.ToString().Equals(ip))
+                .First(); 
 
             if (success)
             {
-                item.SubItems[2].Text = time.ToString();
+                row.Cells["time"].Value = time.ToString() + TimeUnitString;
 
-                if(time < minTime)
+                if (time < minTime)
                 {
                     try
                     {
-                        listView1.FindItemWithText(minIp, true, 0).BackColor = Color.White;
-                    } catch(Exception)
+                        DataGridViewCellStyle style2 = new DataGridViewCellStyle();
+                        style2.BackColor = Color.White;
+
+                        DataGridViewRow foundRow = dataGridView1.Rows
+                            .Cast<DataGridViewRow>()
+                            .Where(r => r.Cells["ip"].Value.ToString().Equals(minIp))
+                            .First();
+                        foundRow.Selected = false;
+                        foundRow.Cells["time"].Style = style2;
+                    } catch (Exception)
                     {
                         //
                     }
@@ -46,14 +60,22 @@ namespace SteamHosts
                     minTime = time;
                     minIp = ip;
 
-                    item.BackColor = Color.LightPink;
-                    listView1.TopItem = item;
+                    DataGridViewCellStyle style = new DataGridViewCellStyle();
+                    style.BackColor = Color.LightPink;
+                    row.Cells["time"].Style = style;
+
+                    dataGridView1.FirstDisplayedScrollingRowIndex = row.Index;
+                    dataGridView1.CurrentCell = dataGridView1.Rows[row.Index].Cells[0];
+                    dataGridView1.Refresh();
+                    row.Selected = true;
 
                     button2.Enabled = true;
                 }
             }
             else
-                item.SubItems[2].Text = "连接失败";
+            {
+                row.Cells["time"].Value = UnableToConnect;
+            }
 
             //foundCount++;
             Interlocked.Increment(ref foundCount);
@@ -65,21 +87,16 @@ namespace SteamHosts
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            getCurrentHosts(Hostname);
             ipList = JsonReader.readIpList("ip.json");
-            int index = 1;
-            listView1.BeginUpdate();
+
             foreach (var item in ipList)
             {
-                ListViewItem lvItem = new ListViewItem();
-                lvItem.Text = index.ToString();
-                lvItem.SubItems.Add(item.Key);
-                lvItem.SubItems.Add("");
-                lvItem.SubItems.Add(item.Value);
-
-                listView1.Items.Add(lvItem);
-                index++;
+                int index = dataGridView1.Rows.Add();
+                dataGridView1.Rows[index].Cells[0].Value = item.Key;
+                dataGridView1.Rows[index].Cells[1].Value = "";
+                dataGridView1.Rows[index].Cells[2].Value = item.Value;
             }
-            listView1.EndUpdate();
         }
 
         private void clearData()
@@ -90,13 +107,18 @@ namespace SteamHosts
             minTime = 99999;
             minIp = null;
 
-            listView1.BeginUpdate();
-            foreach(ListViewItem item in listView1.Items)
+            dataGridView1.FirstDisplayedScrollingRowIndex = 0;
+            dataGridView1.CurrentCell = dataGridView1.Rows[0].Cells[0];
+            dataGridView1.Refresh();
+
+            DataGridViewCellStyle style = new DataGridViewCellStyle();
+            style.BackColor = Color.White;
+
+            foreach (DataGridViewRow row in dataGridView1.Rows)
             {
-                item.BackColor = Color.White;
-                item.SubItems[2].Text = "";
+                row.Cells["time"].Style = style;
+                row.Cells["time"].Value = "";
             }
-            listView1.EndUpdate();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -106,16 +128,19 @@ namespace SteamHosts
 
         private void button2_Click(object sender, EventArgs e)
         {
-            if( minIp != null )
+            string hostsResult = "IP null";
+            if ( minIp != null )
             {
-                bool hostsResult = Hosts.ChangeHosts(Hostname, minIp);
-                if (hostsResult)
+                hostsResult = Hosts.ChangeHosts("steamcommunity.com", dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells["ip"].Value.ToString());
+                hostsResult = Hosts.ChangeHosts(Hostname, dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells["ip"].Value.ToString());
+                if (hostsResult == "OK")
                 {
                     MessageBox.Show("设置hosts成功！");
+                    getCurrentHosts(Hostname);
                     return;
                 }
             }
-            MessageBox.Show("设置hosts失败！");
+            MessageBox.Show("设置hosts失败，原因：" + hostsResult);
         }
 
         private void TestHttpSpeed(int maxConn, int timeout) 
@@ -144,5 +169,11 @@ namespace SteamHosts
                 }
             });
         }
+
+        private void getCurrentHosts(string hostname)
+        {
+            string ip = Hosts.getIPByDomain(hostname);
+            label3.Text = ip;
+        } 
     }
 }
