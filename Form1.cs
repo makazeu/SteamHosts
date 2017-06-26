@@ -68,8 +68,6 @@ namespace SteamHosts
                     dataGridView1.CurrentCell = dataGridView1.Rows[row.Index].Cells[0];
                     dataGridView1.Refresh();
                     row.Selected = true;
-
-                    button2.Enabled = true;
                 }
             }
             else
@@ -97,12 +95,16 @@ namespace SteamHosts
                 dataGridView1.Rows[index].Cells[1].Value = "";
                 dataGridView1.Rows[index].Cells[2].Value = item.Value;
             }
+
+            if (ipList.Count > 0)
+            {
+                button2.Enabled = true;
+            }
         }
 
         private void clearData()
         {
             button1.Enabled = false;
-            button2.Enabled = false;
             foundCount = 0;
             minTime = 99999;
             minIp = null;
@@ -129,10 +131,20 @@ namespace SteamHosts
         private void button2_Click(object sender, EventArgs e)
         {
             string hostsResult = "IP null";
-            if ( minIp != null )
+
+            string selectedIP = null;
+            try
             {
-                hostsResult = Hosts.ChangeHosts("steamcommunity.com", dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells["ip"].Value.ToString());
-                hostsResult = Hosts.ChangeHosts(Hostname, dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells["ip"].Value.ToString());
+                selectedIP = dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells["ip"].Value.ToString();
+            } catch
+            {
+                //
+            }
+
+            if ( selectedIP != null )
+            {
+                hostsResult = Hosts.ChangeHosts("steamcommunity.com", selectedIP);
+                hostsResult = Hosts.ChangeHosts(Hostname, selectedIP);
                 if (hostsResult == "OK")
                 {
                     MessageBox.Show("设置hosts成功！");
