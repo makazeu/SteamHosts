@@ -12,7 +12,7 @@ namespace SteamHosts
     {
         const string Hostname = "store.steampowered.com";
         const int MaximumConnection = 30;
-        const int MaximumTimeout = 3; // seconds
+        const int MaximumTimeout = 4; // seconds
         const string UnableToConnect = "连接失败";
         const string TimeUnitString = " ms";
 
@@ -80,13 +80,28 @@ namespace SteamHosts
             if (foundCount == ipList.Count)
             {
                 button1.Enabled = true;
+                button3.Enabled = true;
             }
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
             getCurrentHosts(Hostname);
+
+            initialize();
+        }
+
+        private void initialize()
+        {
+            if (!System.IO.File.Exists("ip.json"))
+            {
+                MessageBox.Show("无法找到ip.json文件！");
+                Environment.Exit(0);
+            }
             ipList = JsonReader.readIpList("ip.json");
+
+            dataGridView1.Rows.Clear();
+            dataGridView1.Refresh();
 
             foreach (var item in ipList)
             {
@@ -99,12 +114,14 @@ namespace SteamHosts
             if (ipList.Count > 0)
             {
                 button2.Enabled = true;
+            } else
+            {
+                button2.Enabled = false;
             }
         }
 
         private void clearData()
         {
-            button1.Enabled = false;
             foundCount = 0;
             minTime = 99999;
             minIp = null;
@@ -158,6 +175,8 @@ namespace SteamHosts
         private void TestHttpSpeed(int maxConn, int timeout) 
         {
             clearData();
+            button1.Enabled = false;
+            button3.Enabled = false;
 
             Task runTask = Task.Run( ()=> {
                 Semaphore semaphore = new Semaphore(maxConn, maxConn);
@@ -186,6 +205,43 @@ namespace SteamHosts
         {
             string ip = Hosts.getIPByDomain(hostname);
             label3.Text = ip;
-        } 
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            button3.Text = "更新中...";
+            button1.Enabled = false;
+            button2.Enabled = false;
+            button3.Enabled = false;
+
+            System.IO.File.Copy("ip.json", "ip.json.bak", true);
+
+            string result = UpdateIp.UpdateIpLibrary();
+
+            if (result.Equals("OK"))
+            {
+                MessageBox.Show("更新本地ip库文件成功！");
+            } else
+            {
+                if (System.IO.File.Exists("ip.json.bak"))
+                {
+                    System.IO.File.Copy("ip.json.bak", "ip.json", true);
+                }
+                MessageBox.Show("更新本地ip库文件失败！原因：" + result);
+            }
+
+            System.IO.File.Delete("ip.json.bak");
+
+            initialize();
+
+            button3.Text = "更新IP列表";
+            button1.Enabled = true;
+            button3.Enabled = true;
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+            System.Diagnostics.Process.Start("http://weibo.com/511200124/");
+        }
     }
 }
