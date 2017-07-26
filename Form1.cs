@@ -13,7 +13,6 @@ namespace SteamHosts
         const string Hostname = "store.steampowered.com";
         const int MaximumConnection = 30;
         const int MaximumTimeout = 4; // seconds
-        const string UnableToConnect = "连接失败";
         const string TimeUnitString = " ms";
 
         Dictionary<String, String> ipList;
@@ -21,14 +20,16 @@ namespace SteamHosts
         int minTime;
         string minIp;
 
-        private delegate void UpdateListViewDelegate(string ip, bool success, int time);
+        private delegate void UpdateListViewDelegate(string ip, bool success, int time, string result);
+
+        private delegate void updateCurrentIpResultDelegate(bool success, int time, string result);
 
         public Form1()
         {
             InitializeComponent();
         }
 
-        private void UpdateListView(string ip, bool success, int time)
+        private void UpdateListView(string ip, bool success, int time, string result)
         {
             DataGridViewRow row = dataGridView1.Rows
                 .Cast<DataGridViewRow>()
@@ -72,7 +73,7 @@ namespace SteamHosts
             }
             else
             {
-                row.Cells["time"].Value = UnableToConnect;
+                row.Cells["time"].Value = result;
             }
 
             //foundCount++;
@@ -81,6 +82,19 @@ namespace SteamHosts
             {
                 button1.Enabled = true;
                 button3.Enabled = true;
+            }
+        }
+
+        private void updateCurrentIpResult(bool success, int time, string result)
+        {
+            if(success)
+            {
+                label4.ForeColor = Color.Green;
+                label4.Text = "（连接成功，耗时：" + time + " ms）";
+            } else
+            {
+                label4.ForeColor = Color.Red;
+                label4.Text = "（" + result + "）";
             }
         }
 
@@ -95,7 +109,7 @@ namespace SteamHosts
         {
             if (!System.IO.File.Exists("ip.json"))
             {
-                MessageBox.Show("无法找到ip.json文件！");
+                MessageBox.Show("无法找到ip.json文件！", "SteamHosts");
                 Environment.Exit(0);
             }
             ipList = JsonReader.readIpList("ip.json");
@@ -164,12 +178,22 @@ namespace SteamHosts
                 hostsResult = Hosts.ChangeHosts(Hostname, selectedIP);
                 if (hostsResult == "OK")
                 {
-                    MessageBox.Show("设置hosts成功！");
+                    MessageBox.Show("设置hosts成功！", "SteamHosts");
                     getCurrentHosts(Hostname);
                     return;
                 }
             }
-            MessageBox.Show("设置hosts失败，原因：" + hostsResult);
+            MessageBox.Show("设置hosts失败，原因：" + hostsResult, "SteamHosts");
+        }
+
+        private void testSingleHttpWithIp(string ip, int timeout)
+        {
+            Task task = Task.Run(() => {
+                HttpResult result = HttpHeader.GetHttpConnectionStatus(Hostname, ip, timeout);
+
+                BeginInvoke(new updateCurrentIpResultDelegate(updateCurrentIpResult),
+                    result.isSuccess(), result.getTime(), result.getResult());
+            });
         }
 
         private void TestHttpSpeed(int maxConn, int timeout) 
@@ -187,13 +211,8 @@ namespace SteamHosts
                     Task task = Task.Run( ()=> {
                         HttpResult result = HttpHeader.GetHttpConnectionStatus(Hostname, item.Key, timeout);
 
-                        if (result.isSuccess()) {
-                            //Console.Write(item.Key + "  ");
-                            //Console.WriteLine("Success! " + result.getTime());
-                        }
-
                         BeginInvoke(new UpdateListViewDelegate(UpdateListView), 
-                            item.Key, result.isSuccess(), result.getTime());
+                            item.Key, result.isSuccess(), result.getTime(), result.getResult());
 
                         semaphore.Release();
                     } );
@@ -205,6 +224,11 @@ namespace SteamHosts
         {
             string ip = Hosts.getIPByDomain(hostname);
             label3.Text = ip;
+
+            label4.ForeColor = Color.Black;
+            label4.Text = "（测试中...）";
+
+            testSingleHttpWithIp(ip, MaximumTimeout);
         }
 
         private void button3_Click(object sender, EventArgs e)
@@ -220,14 +244,14 @@ namespace SteamHosts
 
             if (result.Equals("OK"))
             {
-                MessageBox.Show("更新本地ip库文件成功！");
+                MessageBox.Show("更新本地IP库文件成功！", "SteamHosts");
             } else
             {
                 if (System.IO.File.Exists("ip.json.bak"))
                 {
                     System.IO.File.Copy("ip.json.bak", "ip.json", true);
                 }
-                MessageBox.Show("更新本地ip库文件失败！原因：" + result);
+                MessageBox.Show("更新本地IP库文件失败！原因：" + result, "SteamHosts");
             }
 
             System.IO.File.Delete("ip.json.bak");
@@ -242,6 +266,25 @@ namespace SteamHosts
         private void label1_Click(object sender, EventArgs e)
         {
             System.Diagnostics.Process.Start("http://weibo.com/511200124/");
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            if(MessageBox.Show("确定要清除Steam的hosts吗？", "SteamHosts", MessageBoxButtons.YesNo) 
+                == DialogResult.Yes)
+            {
+                Hosts.removeHostsItem(Hostname);
+                string result = Hosts.removeHostsItem("steamcommunity.com");
+
+                if (result.Equals("OK"))
+                {
+                    MessageBox.Show("清除Steam hosts成功！", "SteamHosts");
+                } else
+                {
+                    MessageBox.Show("清除Steam hosts失败！原因：" + result, "SteamHosts");
+                }
+                getCurrentHosts(Hostname);
+            }
         }
     }
 }

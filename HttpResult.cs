@@ -9,6 +9,7 @@ namespace SteamHosts
     class HttpResult
     {
         private bool flag;  // true: has response  false: no response
+        private string result;
         private int time;
 
         public bool isSuccess(){
@@ -17,6 +18,14 @@ namespace SteamHosts
 
         public void setFlag(bool flag) {
             this.flag = flag;
+        }
+
+        public void setResult(string result) {
+            this.result = result;
+        }
+
+        public string getResult() {
+            return result;
         }
 
         public int getTime() {

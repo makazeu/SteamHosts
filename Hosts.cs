@@ -11,7 +11,7 @@ namespace SteamHosts
 {
     class Hosts
     {
-        public static string ChangeHosts(String hostname, String ipAddr)
+        public static string ChangeHosts(string hostname, string ipAddr)
         {
             try
             {
@@ -24,7 +24,7 @@ namespace SteamHosts
             }
         }
 
-        public static string getIPByDomain(String hostname)
+        public static string getIPByDomain(string hostname)
         {
             try
             {
@@ -34,6 +34,18 @@ namespace SteamHosts
             } catch (Exception e)
             {
                 return e.Message.ToString();
+            }
+        }
+
+        public static string removeHostsItem(string domain)
+        {
+            try
+            {
+                HostsFile.Remove(domain);
+                return "OK";
+            } catch (Exception e)
+            {
+                return e.Message;
             }
         }
     }

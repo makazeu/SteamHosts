@@ -6,6 +6,10 @@ namespace SteamHosts
 {
     class HttpHeader
     {
+        private static string ERROR_TIMEOUT = "连接超时";
+        private static string ERROR_RESET = "连接被重置";
+        private static string ERROR_OTHER = "连接失败";
+
         public static HttpResult GetHttpConnectionStatus(
             string hostname, string ip, int timeout)
         {
@@ -33,9 +37,16 @@ namespace SteamHosts
                 TimeSpan timeSpan = timer.Elapsed;
                 result.setTime((int) timeSpan.TotalMilliseconds);
                 result.setFlag(true);
-            } catch (Exception)
+            } catch (WebException e) when (e.Status == WebExceptionStatus.Timeout)
             {
-                //Console.WriteLine(e.ToString());
+                result.setResult(ERROR_TIMEOUT);
+            } catch (WebException e) when (e.Status == WebExceptionStatus.ReceiveFailure)
+            {
+                result.setResult(ERROR_RESET);
+            } catch (WebException e)
+            {
+                Console.WriteLine(e);
+                result.setResult(ERROR_OTHER);
             }
 
             return result;
