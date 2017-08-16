@@ -14,7 +14,9 @@ namespace SteamHosts
         const int MaximumConnection = 30;
         const int MaximumTimeout = 4; // seconds
         const string TimeUnitString = " ms";
+        const int WatchModeTimeInterval = 60;// seconds
 
+        System.Timers.Timer t;
         Dictionary<String, String> ipList;
         int foundCount;
         int minTime;
@@ -23,6 +25,8 @@ namespace SteamHosts
         private delegate void UpdateListViewDelegate(string ip, bool success, int time, string result);
 
         private delegate void updateCurrentIpResultDelegate(bool success, int time, string result);
+
+        private delegate void TestHttpSpeedDelegate(int maxconn, int timeout);
 
         public Form1()
         {
@@ -82,6 +86,10 @@ namespace SteamHosts
             {
                 button1.Enabled = true;
                 button3.Enabled = true;
+                if (t.Enabled == true)
+                {
+                    button2.PerformClick();
+                }
             }
         }
 
@@ -101,8 +109,17 @@ namespace SteamHosts
         private void Form1_Load(object sender, EventArgs e)
         {
             getCurrentHosts(Hostname);
-
+            
             initialize();
+
+            //timer initialize
+            t = new System.Timers.Timer(WatchModeTimeInterval * 1000);
+            t.Elapsed += (tsender, te) =>
+            {
+                BeginInvoke(new TestHttpSpeedDelegate(TestHttpSpeed), MaximumConnection, MaximumTimeout);
+                //TODO:记录数据到json
+            };
+            t.AutoReset = true;
         }
 
         private void initialize()
@@ -178,12 +195,12 @@ namespace SteamHosts
                 hostsResult = Hosts.ChangeHosts(Hostname, selectedIP);
                 if (hostsResult == "OK")
                 {
-                    MessageBox.Show("设置hosts成功！", "SteamHosts");
+                    //MessageBox.Show("设置hosts成功！", "SteamHosts");
                     getCurrentHosts(Hostname);
                     return;
                 }
             }
-            MessageBox.Show("设置hosts失败，原因：" + hostsResult, "SteamHosts");
+            //MessageBox.Show("设置hosts失败，原因：" + hostsResult, "SteamHosts");
         }
 
         private void testSingleHttpWithIp(string ip, int timeout)
@@ -284,6 +301,21 @@ namespace SteamHosts
                     MessageBox.Show("清除Steam hosts失败！原因：" + result, "SteamHosts");
                 }
                 getCurrentHosts(Hostname);
+            }
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            if (!t.Enabled)
+            {
+                TestHttpSpeed(MaximumConnection, MaximumTimeout);
+                t.Start();
+                button5.Text = "禁用监视";
+            }
+            else
+            {
+                t.Stop();
+                button5.Text = "启用监视";
             }
         }
     }
