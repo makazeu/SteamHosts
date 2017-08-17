@@ -91,7 +91,7 @@ namespace SteamHosts
                 button1.Enabled = true;
                 button3.Enabled = true;
                 isTesting = false;
-                //start watching
+                //开启监视模式
                 if (button5.Text == "禁用监视")
                 {
                     Hosts.ChangeHosts("steamcommunity.com", minIp);
@@ -99,7 +99,7 @@ namespace SteamHosts
                     getCurrentHosts(Hostname);
                     t.Start();
                 }
-                //waiting stop
+                //监视模式被放弃
                 if (button5.Text == "等待结束...")
                 {
                     t.Stop();
@@ -129,7 +129,7 @@ namespace SteamHosts
 
             initialize();
 
-            //timer initialize
+            //初始化Timer
             t = new System.Timers.Timer(WatchModeTimeInterval * 1000);
             t.Elapsed += (tsender, te) =>
             {
@@ -330,7 +330,15 @@ namespace SteamHosts
             }
         }
 
-
+        /// <summary>
+        /// 监视模式
+        /// </summary>
+        /// <remarks>
+        /// 原理为每隔WatchModeTimeInterval时间检测一次当前hosts
+        /// 如果连接成功，则继续使用
+        /// 如果连接失败，则停止timer计时，启用一个临时可用的hosts，重启全部测试
+        /// 在全部测试完成后timer会自动开启，重新开始监视模式循环
+        /// </remarks>
         private void OnWatchMode()
         {
             HttpResult result = HttpHeader.GetHttpConnectionStatus(Hostname, minIp, MaximumTimeout);
@@ -339,9 +347,9 @@ namespace SteamHosts
 
             if (!result.isSuccess())
             {
-                //stop current timer, and start after next all testing
+                //停止timer计时，等待下一次全部测试完成后启动
                 t.Stop();
-                //find and use a temporarily hosts
+                //临时使用一个可用的hosts
                 var ips = from DataGridViewRow row in dataGridView1.Rows
                           where row.Cells["ip"].Value is string && IPRegex.IsMatch(row.Cells["ip"].Value.ToString())
                           orderby row.Cells["time"].Value.ToString()
@@ -351,7 +359,7 @@ namespace SteamHosts
                     HttpResult res = HttpHeader.GetHttpConnectionStatus(Hostname, ip, MaximumTimeout);
                     if (res.isSuccess())
                     {
-                        //update hosts
+                        //更新hosts
                         String hostsResult;
                         hostsResult = Hosts.ChangeHosts("steamcommunity.com", ip);
                         hostsResult = Hosts.ChangeHosts(Hostname, ip);
@@ -361,7 +369,7 @@ namespace SteamHosts
                     else
                         continue;
                 }
-                //restart all testing
+                //重启全部测试
                 TestHttpSpeed(MaximumConnection, MaximumTimeout);
             }
         }
