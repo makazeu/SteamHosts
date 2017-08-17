@@ -134,7 +134,6 @@ namespace SteamHosts
             t.Elapsed += (tsender, te) =>
             {
                 BeginInvoke(new OnWatchModeDelegate(OnWatchMode));
-                //TODO:记录数据到json
             };
             t.AutoReset = true;
         }
