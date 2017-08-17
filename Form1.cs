@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using System.Threading;
 using System.Linq;
 using System.Drawing;
+using System.Text.RegularExpressions;
 
 namespace SteamHosts
 {
@@ -14,19 +15,21 @@ namespace SteamHosts
         const int MaximumConnection = 30;
         const int MaximumTimeout = 4; // seconds
         const string TimeUnitString = " ms";
-        const int WatchModeTimeInterval = 60;// seconds
+        const int WatchModeTimeInterval = 15;// seconds
+        Regex IPRegex = new Regex(@"\d+\.\d+\.\d+\.\d+");
 
         System.Timers.Timer t;
         Dictionary<String, String> ipList;
         int foundCount;
         int minTime;
         string minIp;
+        bool isTesting = false;
 
         private delegate void UpdateListViewDelegate(string ip, bool success, int time, string result);
 
         private delegate void updateCurrentIpResultDelegate(bool success, int time, string result);
 
-        private delegate void TestHttpSpeedDelegate(int maxconn, int timeout);
+        private delegate void OnWatchModeDelegate();
 
         public Form1()
         {
@@ -38,7 +41,7 @@ namespace SteamHosts
             DataGridViewRow row = dataGridView1.Rows
                 .Cast<DataGridViewRow>()
                 .Where(r => r.Cells["ip"].Value.ToString().Equals(ip))
-                .First(); 
+                .First();
 
             if (success)
             {
@@ -57,7 +60,8 @@ namespace SteamHosts
                             .First();
                         foundRow.Selected = false;
                         foundRow.Cells["time"].Style = style2;
-                    } catch (Exception)
+                    }
+                    catch (Exception)
                     {
                         //
                     }
@@ -86,20 +90,33 @@ namespace SteamHosts
             {
                 button1.Enabled = true;
                 button3.Enabled = true;
-                if (t.Enabled == true)
+                isTesting = false;
+                //start watching
+                if (button5.Text == "禁用监视")
                 {
-                    button2.PerformClick();
+                    Hosts.ChangeHosts("steamcommunity.com", minIp);
+                    Hosts.ChangeHosts(Hostname, minIp);
+                    getCurrentHosts(Hostname);
+                    t.Start();
+                }
+                //waiting stop
+                if (button5.Text == "等待结束...")
+                {
+                    t.Stop();
+                    button5.Text = "启用监视";
+                    button5.Enabled = true;
                 }
             }
         }
 
         private void updateCurrentIpResult(bool success, int time, string result)
         {
-            if(success)
+            if (success)
             {
                 label4.ForeColor = Color.Green;
                 label4.Text = "（连接成功，耗时：" + time + " ms）";
-            } else
+            }
+            else
             {
                 label4.ForeColor = Color.Red;
                 label4.Text = "（" + result + "）";
@@ -109,14 +126,14 @@ namespace SteamHosts
         private void Form1_Load(object sender, EventArgs e)
         {
             getCurrentHosts(Hostname);
-            
+
             initialize();
 
             //timer initialize
             t = new System.Timers.Timer(WatchModeTimeInterval * 1000);
             t.Elapsed += (tsender, te) =>
             {
-                BeginInvoke(new TestHttpSpeedDelegate(TestHttpSpeed), MaximumConnection, MaximumTimeout);
+                BeginInvoke(new OnWatchModeDelegate(OnWatchMode));
                 //TODO:记录数据到json
             };
             t.AutoReset = true;
@@ -145,7 +162,8 @@ namespace SteamHosts
             if (ipList.Count > 0)
             {
                 button2.Enabled = true;
-            } else
+            }
+            else
             {
                 button2.Enabled = false;
             }
@@ -184,28 +202,30 @@ namespace SteamHosts
             try
             {
                 selectedIP = dataGridView1.Rows[dataGridView1.CurrentCell.RowIndex].Cells["ip"].Value.ToString();
-            } catch
+            }
+            catch
             {
                 //
             }
 
-            if ( selectedIP != null )
+            if (selectedIP != null)
             {
                 hostsResult = Hosts.ChangeHosts("steamcommunity.com", selectedIP);
                 hostsResult = Hosts.ChangeHosts(Hostname, selectedIP);
                 if (hostsResult == "OK")
                 {
-                    //MessageBox.Show("设置hosts成功！", "SteamHosts");
+                    MessageBox.Show("设置hosts成功！", "SteamHosts");
                     getCurrentHosts(Hostname);
                     return;
                 }
             }
-            //MessageBox.Show("设置hosts失败，原因：" + hostsResult, "SteamHosts");
+            MessageBox.Show("设置hosts失败，原因：" + hostsResult, "SteamHosts");
         }
 
         private void testSingleHttpWithIp(string ip, int timeout)
         {
-            Task task = Task.Run(() => {
+            Task task = Task.Run(() =>
+            {
                 HttpResult result = HttpHeader.GetHttpConnectionStatus(Hostname, ip, timeout);
 
                 BeginInvoke(new updateCurrentIpResultDelegate(updateCurrentIpResult),
@@ -213,26 +233,30 @@ namespace SteamHosts
             });
         }
 
-        private void TestHttpSpeed(int maxConn, int timeout) 
+        private void TestHttpSpeed(int maxConn, int timeout)
         {
+            isTesting = true;
             clearData();
             button1.Enabled = false;
             button3.Enabled = false;
 
-            Task runTask = Task.Run( ()=> {
+            Task runTask = Task.Run(() =>
+            {
                 Semaphore semaphore = new Semaphore(maxConn, maxConn);
 
-                foreach (var item in ipList) {
+                foreach (var item in ipList)
+                {
                     semaphore.WaitOne();
-                
-                    Task task = Task.Run( ()=> {
+
+                    Task task = Task.Run(() =>
+                    {
                         HttpResult result = HttpHeader.GetHttpConnectionStatus(Hostname, item.Key, timeout);
 
-                        BeginInvoke(new UpdateListViewDelegate(UpdateListView), 
+                        BeginInvoke(new UpdateListViewDelegate(UpdateListView),
                             item.Key, result.isSuccess(), result.getTime(), result.getResult());
 
                         semaphore.Release();
-                    } );
+                    });
                 }
             });
         }
@@ -262,7 +286,8 @@ namespace SteamHosts
             if (result.Equals("OK"))
             {
                 MessageBox.Show("更新本地IP库文件成功！", "SteamHosts");
-            } else
+            }
+            else
             {
                 if (System.IO.File.Exists("ip.json.bak"))
                 {
@@ -287,7 +312,7 @@ namespace SteamHosts
 
         private void button4_Click(object sender, EventArgs e)
         {
-            if(MessageBox.Show("确定要清除Steam的hosts吗？", "SteamHosts", MessageBoxButtons.YesNo) 
+            if (MessageBox.Show("确定要清除Steam的hosts吗？", "SteamHosts", MessageBoxButtons.YesNo)
                 == DialogResult.Yes)
             {
                 Hosts.removeHostsItem(Hostname);
@@ -296,7 +321,8 @@ namespace SteamHosts
                 if (result.Equals("OK"))
                 {
                     MessageBox.Show("清除Steam hosts成功！", "SteamHosts");
-                } else
+                }
+                else
                 {
                     MessageBox.Show("清除Steam hosts失败！原因：" + result, "SteamHosts");
                 }
@@ -304,18 +330,61 @@ namespace SteamHosts
             }
         }
 
+
+        private void OnWatchMode()
+        {
+            HttpResult result = HttpHeader.GetHttpConnectionStatus(Hostname, minIp, MaximumTimeout);
+
+            updateCurrentIpResult(result.isSuccess(), result.getTime(), result.getResult());
+
+            if (!result.isSuccess())
+            {
+                //stop current timer, and start after next all testing
+                t.Stop();
+                //find and use a temporarily hosts
+                var ips = from DataGridViewRow row in dataGridView1.Rows
+                          where row.Cells["ip"].Value is string && IPRegex.IsMatch(row.Cells["ip"].Value.ToString())
+                          orderby row.Cells["time"].Value.ToString()
+                          select row.Cells["ip"].Value.ToString();
+                foreach (var ip in ips)
+                {
+                    HttpResult res = HttpHeader.GetHttpConnectionStatus(Hostname, ip, MaximumTimeout);
+                    if (res.isSuccess())
+                    {
+                        //update hosts
+                        String hostsResult;
+                        hostsResult = Hosts.ChangeHosts("steamcommunity.com", ip);
+                        hostsResult = Hosts.ChangeHosts(Hostname, ip);
+                        getCurrentHosts(Hostname);
+                        break;
+                    }
+                    else
+                        continue;
+                }
+                //restart all testing
+                TestHttpSpeed(MaximumConnection, MaximumTimeout);
+            }
+        }
+
         private void button5_Click(object sender, EventArgs e)
         {
-            if (!t.Enabled)
+            if (button5.Text == "启用监视")
             {
                 TestHttpSpeed(MaximumConnection, MaximumTimeout);
-                t.Start();
                 button5.Text = "禁用监视";
             }
             else
             {
-                t.Stop();
-                button5.Text = "启用监视";
+                if (isTesting)
+                {
+                    button5.Text = "等待结束...";
+                    button5.Enabled = false;
+                }
+                else
+                {
+                    t.Stop();
+                    button5.Text = "启用监视";
+                }
             }
         }
     }
